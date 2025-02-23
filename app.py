@@ -7,27 +7,34 @@ from langchain_community.document_loaders import PDFPlumberLoader
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_retrieval_chain
 from langchain.prompts import PromptTemplate
+from langchain.embeddings import HuggingFaceEmbeddings
 
 app = Flask(__name__)
 
 folder_path = "db"
 
-cached_llm = Ollama(model="llama3")
+cached_llm = Ollama(model="deepseek-r1:latest")
+embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
-embedding = FastEmbedEmbeddings()
 
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1024, chunk_overlap=80, length_function=len, is_separator_regex=False
 )
 
 raw_prompt = PromptTemplate.from_template(
-    """ 
-    <s>[INST] You are a technical assistant good at searching docuemnts. If you do not have an answer from the provided information say so. [/INST] </s>
-    [INST] {input}
-           Context: {context}
-           Answer:
-    [/INST]
-"""
+    """
+    <s>[INST] You are a helpful assistant tasked with answering questions based on the provided context. 
+    Please follow these guidelines:
+    - Answer only based on the information provided in the context
+    - If the information is not in the context, say "I don't have enough information to answer this question"
+    - Be concise and direct in your answers
+    - Do not make assumptions beyond what is stated in the context
+    
+    Question: {input}
+    Context: {context}
+    
+    Answer: [/INST]</s>
+    """
 )
 
 
@@ -60,10 +67,9 @@ def askPDFPost():
 
     print("Creating chain")
     retriever = vector_store.as_retriever(
-        search_type="similarity_score_threshold",
+        search_type="similarity",
         search_kwargs={
-            "k": 20,
-            "score_threshold": 0.1,
+            "k": 5,
         },
     )
 
@@ -115,8 +121,10 @@ def pdfPost():
 
 
 def start_app():
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(host="0.0.0.0", port=8082, debug=True)
 
 
 if __name__ == "__main__":
     start_app()
+
+
