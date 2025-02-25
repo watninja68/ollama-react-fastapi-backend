@@ -39,7 +39,7 @@ class Config:
     FOLDER_PATH = Path("db")
     UPLOAD_DIR = Path("temp_uploads")
     IMAGE_OUTPUT_DIR = Path("extracted_images")
-    MODEL_NAME = "deepseek-r1:latest"
+    MODEL_NAME = "llama3.2:latest"
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     CHUNK_SIZE = 1024
     CHUNK_OVERLAP = 80
