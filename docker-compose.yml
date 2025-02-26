@@ -1,40 +1,8 @@
 version: '3'
 services:
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    # Add a healthcheck to ensure Ollama is running before pulling the model
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  ollama-init:
-    image: ollama/ollama
-    depends_on:
-      ollama:
-        condition: service_healthy
-    command: sh -c "ollama pull llama3.2:1b"
-    volumes:
-      - ollama_data:/root/.ollama
-
   app:
     build: .
     ports:
       - "8081:8081"
     environment:
-      - OLLAMA_HOST=http://ollama:11434
-    volumes:
-      - ./db:/app/db
-      - ./temp_uploads:/app/temp_uploads
-      - ./extracted_images:/app/extracted_images
-    depends_on:
-      ollama-init:
-        condition: service_completed_successfully
-
-volumes:
-  ollama_data:
+      - OLLAMA_HOST=http://host.docker.internal:11434
