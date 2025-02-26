@@ -25,7 +25,7 @@ from langchain.prompts import PromptTemplate
 from langchain.embeddings import HuggingFaceEmbeddings
 # Import the LangChain Document schema (aliasing to avoid conflict with python-docx Document)
 from langchain.schema import Document as LC_Document
-
+#summa
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
