@@ -4,5 +4,6 @@ services:
     build: .
     ports:
       - "8081:8081"
+      - "11434:11434"
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434

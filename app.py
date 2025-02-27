@@ -25,7 +25,7 @@ from langchain.prompts import PromptTemplate
 from langchain.embeddings import HuggingFaceEmbeddings
 # Import the LangChain Document schema (aliasing to avoid conflict with python-docx Document)
 from langchain.schema import Document as LC_Document
-
+#summa
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -39,7 +39,7 @@ class Config:
     FOLDER_PATH = Path("db")
     UPLOAD_DIR = Path("temp_uploads")
     IMAGE_OUTPUT_DIR = Path("extracted_images")
-    MODEL_NAME = "llama3.2:1b"
+    MODEL_NAME = "llama3.2:latest"
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     CHUNK_SIZE = 1024
     CHUNK_OVERLAP = 80
@@ -85,10 +85,7 @@ app.add_middleware(
 @contextmanager
 def get_llm():
     try:
-        llm = Ollama(
-            model=Config.MODEL_NAME,
-            base_url=os.getenv('OLLAMA_HOST', 'http://ollama:11434')
-        )
+        llm = Ollama(model=Config.MODEL_NAME)
         yield llm
     except Exception as e:
         logger.error(f"Error creating LLM: {e}")
