@@ -98,6 +98,19 @@ def get_embeddings():
         embeddings = HuggingFaceEmbeddings(model_name=Config.EMBEDDING_MODEL)
         yield embeddings
     except Exception as e:
+        # Check if it's a database schema error
+        if "no such column: collections.topic" in str(e):
+            logger.warning("Database schema error in embeddings. Resetting vector store...")
+            if Config.FOLDER_PATH.exists():
+                shutil.rmtree(Config.FOLDER_PATH)
+                Config.FOLDER_PATH.mkdir(exist_ok=True)
+            # Try again with a clean database
+            try:
+                embeddings = HuggingFaceEmbeddings(model_name=Config.EMBEDDING_MODEL)
+                yield embeddings
+                return
+            except Exception as e2:
+                logger.error(f"Error creating embeddings after DB reset: {e2}")
         logger.error(f"Error creating embeddings model: {e}")
         raise HTTPException(status_code=500, detail="Failed to initialize embeddings model")
 
@@ -445,6 +458,11 @@ async def delete_embeddings():
     except Exception as e:
         logger.error(f"Error deleting embeddings: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete embeddings: {str(e)}")
-
+@app.on_event("shutdown")
+def shutdown_event():
+    import torch
+    if hasattr(torch, "mps") and torch.mps.is_available():
+        # Try to clean up MPS resources
+        torch.mps.empty_cache()
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8081, reload=True)
