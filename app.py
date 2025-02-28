@@ -281,23 +281,34 @@ async def process_and_embed_documents(background_tasks: BackgroundTasks, file_pa
             logger.warning("No document chunks created")
             return
 
-        # Add to vector store
-        with get_embeddings() as embedding_fn:
-            if Config.FOLDER_PATH.exists() and any(Config.FOLDER_PATH.iterdir()):
-                vector_store = Chroma(
-                    persist_directory=str(Config.FOLDER_PATH),
-                    embedding_function=embedding_fn
-                )
-                vector_store.add_documents(docs)
-                vector_store.persist()
-            else:
-                Chroma.from_documents(
-                    docs,
-                    embedding_fn,
-                    persist_directory=str(Config.FOLDER_PATH)
-                )
-
-        logger.info(f"Successfully processed and embedded {file_path}")
+        # Add to vector store with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with get_embeddings() as embedding_fn:
+                    if Config.FOLDER_PATH.exists() and any(Config.FOLDER_PATH.iterdir()):
+                        vector_store = Chroma(
+                            persist_directory=str(Config.FOLDER_PATH),
+                            embedding_function=embedding_fn
+                        )
+                        vector_store.add_documents(docs)
+                        vector_store.persist()
+                    else:
+                        Chroma.from_documents(
+                            docs,
+                            embedding_fn,
+                            persist_directory=str(Config.FOLDER_PATH)
+                        )
+                logger.info(f"Successfully processed and embedded {file_path}")
+                return  # Success, exit the function
+            except Exception as e:
+                if "no such column" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Schema error on attempt {attempt+1}, resetting and retrying...")
+                    reset_vector_store()
+                    continue
+                # If we've exhausted retries or it's not a schema error
+                logger.error(f"Failed to embed documents after {attempt+1} attempts: {e}")
+                raise
     except Exception as e:
         logger.error(f"Error in background processing task: {e}")
 
@@ -410,6 +421,26 @@ def shutdown_event():
     if hasattr(torch, "mps") and torch.mps.is_available():
         # Try to clean up MPS resources
         torch.mps.empty_cache()
-
+@app.get("/health")
+async def health_check():
+    """Check system health including vector store accessibility."""
+    health_status = {"status": "healthy", "components": {}}
+    
+    # Check vector store
+    try:
+        with get_vector_store() as vector_store:
+            if vector_store:
+                # Try a simple operation
+                vector_store.get(ids=["nonexistent_id"], include=["metadatas"])
+                health_status["components"]["vector_store"] = "healthy"
+            else:
+                health_status["components"]["vector_store"] = "not initialized"
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["components"]["vector_store"] = f"unhealthy: {str(e)}"
+    
+    # Add other component checks as needed
+    
+    return health_status
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8081, reload=True)
