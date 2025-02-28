@@ -126,17 +126,29 @@ def get_prompt_template():
         """
     )
 
-# Dependency for vector store
 @contextmanager
 def get_vector_store():
     try:
         with get_embeddings() as embedding_fn:
             if Config.FOLDER_PATH.exists() and any(Config.FOLDER_PATH.iterdir()):
-                vector_store = Chroma(
-                    persist_directory=str(Config.FOLDER_PATH),
-                    embedding_function=embedding_fn
-                )
-                yield vector_store
+                try:
+                    vector_store = Chroma(
+                        persist_directory=str(Config.FOLDER_PATH),
+                        embedding_function=embedding_fn
+                    )
+                    yield vector_store
+                except Exception as e:
+                    # If there's a database schema error, try to reset the database
+                    if "no such column: collections.topic" in str(e):
+                        logger.warning("Database schema error detected. Resetting vector store...")
+                        if Config.FOLDER_PATH.exists():
+                            shutil.rmtree(Config.FOLDER_PATH)
+                            Config.FOLDER_PATH.mkdir(exist_ok=True)
+                        # Return None, as if no vector store exists
+                        yield None
+                    else:
+                        # Re-raise other errors
+                        raise
             else:
                 # Return None if no vector store exists yet
                 yield None
@@ -154,7 +166,7 @@ def clean_text(text: str) -> str:
 def extract_text_and_images_from_pdf(pdf_path: Path, file_name: str, image_output_dir: Path) -> str:
     """
     Extract text from a PDF using pdfplumber.
-    For each 'image' in the PDF, render that page region and save it.
+    Extracts images using PIL/Pillow for rendering.
     """
     extracted_text = ""
     try:
@@ -164,23 +176,20 @@ def extract_text_and_images_from_pdf(pdf_path: Path, file_name: str, image_outpu
                 page_text = page.extract_text() or ""
                 extracted_text += clean_text(page_text) + " "
 
-                # Extract images by rendering page regions
-                for img_index, img_dict in enumerate(page.images):
-                    try:
-                        x0, top = img_dict["x0"], img_dict["top"]
-                        x1, bottom = img_dict["x1"], img_dict["bottom"]
-
-                        # Render page to image
-                        page_image = page.to_image(resolution=150)
-                        
-                        # Crop to image region
-                        cropped = page_image.crop((x0, top, x1, bottom))
-                        
-                        # Save cropped image
-                        image_filename = image_output_dir / f"{file_name}_page{page_number+1}_img{img_index+1}.png"
-                        cropped.save(image_filename, format="PNG")
-                    except Exception as e:
-                        logger.warning(f"Failed to extract image {img_index} from page {page_number}: {e}")
+                # Extract whole page as image instead of trying to crop specific regions
+                try:
+                    # Convert page to image
+                    img = page.to_image(resolution=150)
+                    
+                    # Save whole page as image
+                    image_filename = image_output_dir / f"{file_name}_page{page_number+1}.png"
+                    img.save(image_filename, format="PNG")
+                    
+                    # Optionally log the number of images detected but not individually extracted
+                    if page.images:
+                        logger.info(f"Page {page_number+1} contains {len(page.images)} images (saved as whole page)")
+                except Exception as e:
+                    logger.warning(f"Failed to render page {page_number+1} as image: {e}")
         
         return extracted_text
     except Exception as e:
