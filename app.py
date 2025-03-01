@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 class Config:
     FOLDER_PATH = Path("db")
     UPLOAD_DIR = Path("temp_uploads")
-    MODEL_NAME = "llama3.1:latest"
+    MODEL_NAME = "llama3.2:latest"
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     CHUNK_SIZE = 1024
     CHUNK_OVERLAP = 80
